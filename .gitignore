@@ -1,0 +1,24 @@
+# Python environments and generated files
+.venv/
+__pycache__/
+*.py[cod]
+logs/
+.idea/
+.vscode/
+
+# Local model weights
+integrated_qa_system/rag_qa/**/pytorch_model.bin
+integrated_qa_system/rag_qa/**/tf_model.h5
+integrated_qa_system/rag_qa/**/flax_model.msgpack
+integrated_qa_system/rag_qa/**/*.safetensors
+integrated_qa_system/rag_qa/models/bert_results/
+integrated_qa_system/rag_qa/models/tmp_trainer/
+
+# Local configuration and frontend generated files
+integrated_qa_system/config.ini
+EduRAG_WebProject/node_modules/
+EduRAG_WebProject/dist/
+EduRAG_WebProject/coverage/
+EduRAG_WebProject/.env
+EduRAG_WebProject/.env.*
+!EduRAG_WebProject/.env.example

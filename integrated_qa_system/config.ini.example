@@ -1,0 +1,42 @@
+# Copy this file to config.ini and fill in local credentials.
+[mysql]
+host = 127.0.0.1
+port = 3306
+user = root
+password =
+database = subjects_kg
+
+[redis]
+host = 127.0.0.1
+port = 6379
+password =
+db = 0
+
+[milvus]
+host = 127.0.0.1
+port = 19530
+database_name = default
+collection_name = edurag
+
+[llm]
+model = qwen-plus
+dashscope_api_key =
+dashscope_base_url = https://dashscope.aliyuncs.com/compatible-mode/v1
+
+[retrieval]
+parent_chunk_size = 1200
+child_chunk_size = 300
+chunk_overlap = 50
+retrieval_k = 5
+candidate_m = 2
+valid_sources = ['java', 'python', '运维', 'ai']
+
+[loca_models]
+m3_model_path = ./rag_qa/models/bge-m3
+reranker_model_path = ./rag_qa/models/bge-reranker-large
+
+[logger]
+log_file = logs/app.log
+
+[app]
+customer_service_phone =
