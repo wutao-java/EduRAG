@@ -6,7 +6,7 @@
 
 ```powershell
 cd D:\EduRAG\EduRAG_HUB
-python -m uvicorn integrated_qa_system.app:app --host 127.0.0.1 --port 8000
+python -m integrated_qa_system.main serve --host 127.0.0.1 --port 8000
 ```
 
 ## 启动前端
