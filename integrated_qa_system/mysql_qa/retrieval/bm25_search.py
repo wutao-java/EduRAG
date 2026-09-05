@@ -79,7 +79,6 @@ class BM25Search:
             scores = self.bm25.get_scores(query_tokens)
             # 获取最高分索引
             best_idx = scores.argmax()
-            best_score = scores[best_idx]
             query_terms = set(query_tokens)
             question_terms = set(self.questions[best_idx])
             overlap_count = len(query_terms & question_terms)

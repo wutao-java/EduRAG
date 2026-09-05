@@ -52,19 +52,23 @@ class StrategySelector:
     )
 
     # 初始化策略选择器及其依赖对象
-    def __init__(self):
-        # 创建 OpenAI 客户端，并从项目配置中读取 DashScope API 密钥和兼容接口地址
-        self.client = OpenAI(
-            # 设置 DashScope API 身份验证密钥
-            api_key=Config().DASHSCOPE_API_KEY,
-            # 设置 DashScope 的 OpenAI 兼容接口基础地址
-            base_url=Config().DASHSCOPE_BASE_URL,
-        )
+    def __init__(self, llm=None):
+        self.llm = llm
+        self.client = None
+        if llm is None:
+            # 兼容独立运行方式；应用运行时由组合根注入共享 LLM 客户端。
+            self.client = OpenAI(
+                api_key=Config().DASHSCOPE_API_KEY,
+                base_url=Config().DASHSCOPE_BASE_URL,
+            )
         # 创建并保存策略选择提示词模板，供后续查询重复使用
         self.strategy_prompt_template = self._get_strategy_prompt()
 
     # 调用 DashScope 大模型，并返回模型生成的策略名称
     def call_dashscope(self, prompt):
+        if self.llm is not None:
+            return self.llm(prompt)
+
         # 捕获网络、鉴权、模型配置和响应解析等调用异常
         try:
             # 通过 OpenAI 兼容接口创建一次聊天补全请求

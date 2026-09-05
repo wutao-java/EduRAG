@@ -1,21 +1,30 @@
 # EduRAG
 
-EduRAG 是一个面向 IT 教育场景的智能问答系统，融合课程 FAQ、BM25
-检索和知识库 RAG，并提供 FastAPI 与 Vue 3 前后端应用。
+EduRAG 是一个面向 IT 教育场景的智能问答系统，融合课程 FAQ、BM25、
+知识库 RAG 和 LangGraph Agent，并提供 FastAPI 与 Vue 3 前后端应用。
 
 ## 项目结构
 
 - `integrated_qa_system/base`：配置和日志基础模块
-- `integrated_qa_system/rag_qa`：文档处理、向量检索和 BERT 查询分类
+- `integrated_qa_system/application`：问答用例和低成本 FAQ 分流
+- `integrated_qa_system/agent`：LangGraph 状态、编排图和 Agent 工具
+- `integrated_qa_system/conversation`：会话服务和 MySQL 持久化仓储
+- `integrated_qa_system/infrastructure`：DashScope 等外部系统适配器
+- `integrated_qa_system/rag_qa`：文档处理、检索规划、证据检索和答案生成
 - `integrated_qa_system/mysql_qa`：MySQL FAQ、Redis 缓存和 BM25 检索
+- `integrated_qa_system/bootstrap.py`：运行时依赖的唯一组合根
+- `integrated_qa_system/main.py`：兼容旧调用方式的门面与命令行入口
 - `integrated_qa_system/app.py`：HTTP 与 WebSocket API
 - `EduRAG_WebProject`：Vue 3 学习问答前端
 
+查询首先匹配问候语和高置信度 FAQ。未命中时进入 Agent，依次执行查询规划、
+知识库检索工具和答案生成。Agent 只依赖业务服务，不直接访问 MySQL、Redis
+或 Milvus；会话历史仍由 MySQL 保存，不与 LangGraph 状态重复持久化。
+
 ## 本地配置
 
-复制 `integrated_qa_system/config.ini.example` 为
-`integrated_qa_system/config.ini`，再填写 MySQL、Redis、Milvus 和
-DashScope 配置。`config.ini` 只保留在本机，不会提交到仓库。
+在 `integrated_qa_system/config.ini` 中填写 MySQL、Redis、Milvus 和
+DashScope 配置。该文件只保留在本机，不会提交到仓库。
 
 也可以使用同名大写环境变量覆盖配置，例如 `MYSQL_HOST`、
 `MYSQL_PORT`、`DASHSCOPE_API_KEY` 和 `M3_MODEL_PATH`。
@@ -24,7 +33,7 @@ DashScope 配置。`config.ini` 只保留在本机，不会提交到仓库。
 
 ```powershell
 pip install -r integrated_qa_system/requirements.txt
-python -m uvicorn integrated_qa_system.app:app --host 127.0.0.1 --port 8080
+python -m uvicorn integrated_qa_system.app:app --host 127.0.0.1 --port 8000
 ```
 
 ```powershell

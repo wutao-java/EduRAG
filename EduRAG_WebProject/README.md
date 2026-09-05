@@ -5,19 +5,19 @@
 ## 启动后端
 
 ```powershell
-cd D:\EduRAG\My_EduRAG
-.\integrated_qa_system\.venv\Scripts\python.exe -m uvicorn integrated_qa_system.app:app --host 127.0.0.1 --port 8080
+cd D:\EduRAG\EduRAG_HUB
+python -m uvicorn integrated_qa_system.app:app --host 127.0.0.1 --port 8000
 ```
 
 ## 启动前端
 
 ```powershell
-cd D:\EduRAG\EduRAG_WebProject
+cd D:\EduRAG\EduRAG_HUB\EduRAG_WebProject
 npm install
 npm run dev
 ```
 
-浏览器访问 `http://127.0.0.1:5173`。开发服务器默认将 `/api` 和 WebSocket 请求代理到 `http://127.0.0.1:8080`。
+浏览器访问 `http://127.0.0.1:5173`。开发服务器默认将 `/api` 和 WebSocket 请求代理到 `http://127.0.0.1:8000`。
 
 ## 验证命令
 

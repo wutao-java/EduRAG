@@ -14,7 +14,8 @@ from pymilvus import MilvusClient, DataType, AnnSearchRequest, WeightedRanker
 from scipy.sparse import csr_matrix
 # 导入 CrossEncoder，用于重排序和 NLI 判断
 from sentence_transformers import CrossEncoder
-from rag_qa.core.document_processor import *
+from langchain_core.documents import Document
+from rag_qa.core.document_processor import process_documents
 # 导入 hashlib 模块，用于生成唯一 ID 的哈希值
 import hashlib
 

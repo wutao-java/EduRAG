@@ -8,7 +8,6 @@ from contextlib import asynccontextmanager
 import json
 import logging
 from pathlib import Path
-import re
 import sys
 import time
 from typing import Any, Optional
@@ -16,42 +15,22 @@ import uuid
 
 from fastapi import APIRouter, FastAPI, HTTPException, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, field_validator
 from starlette.concurrency import iterate_in_threadpool, run_in_threadpool
 from starlette.websockets import WebSocketDisconnect, WebSocketState
 
+try:
+    from .application import check_greeting
+except ImportError:
+    from application import check_greeting
 
-# 使用 app.py 所在目录计算资源路径，避免启动目录变化导致静态文件失效。
+
+# 使用 app.py 所在目录定位后端模块。
 BASE_DIR = Path(__file__).resolve().parent
-STATIC_DIR = BASE_DIR / "static"
-INDEX_FILE = STATIC_DIR / "index.html"
 
 # 模块日志记录器和统一路由对象。
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
-
-# 常见日常用语直接返回固定答案，避免无意义地进入检索与大模型流程。
-GREETING_PATTERNS = [
-    {
-        "pattern": r"^(你好|您好|hi|hello)",
-        "response": "你好！我是涛小将，专注于为学生答疑解惑，很高兴为你服务！",
-    },
-    {
-        "pattern": r"^(你是谁|您是谁|你叫什么|你的名字|who are you)",
-        "response": "我是涛小将，你的智能学习助手，致力于提供 IT 教育相关的解答！",
-    },
-    {
-        "pattern": r"^(在吗|在不在|有人吗)",
-        "response": "我在！我是涛小将，随时为你解答问题！",
-    },
-    {
-        "pattern": r"^(干嘛呢|你在干嘛|做什么)",
-        "response": "我正在待命，随时为你解答 IT 学习相关的问题！有什么我可以帮你的？",
-    },
-]
 
 
 class QueryRequest(BaseModel):
@@ -111,16 +90,6 @@ class SessionTitleRequest(BaseModel):
         return normalized_value[:80]
 
 
-def check_greeting(query: str) -> Optional[str]:
-    """匹配预定义问候语，匹配成功时返回固定回复。"""
-
-    query_text = query.strip()
-    for pattern_info in GREETING_PATTERNS:
-        if re.match(pattern_info["pattern"], query_text, re.IGNORECASE):
-            return pattern_info["response"]
-    return None
-
-
 def _create_qa_system():
     """延迟导入并创建问答系统，避免模块导入时加载模型和外部连接。"""
 
@@ -128,13 +97,21 @@ def _create_qa_system():
     if str(BASE_DIR) not in sys.path:
         sys.path.insert(0, str(BASE_DIR))
 
-    from new_main import IntegratedQASystem
+    if __package__:
+        from .main import IntegratedQASystem
+    else:
+        from main import IntegratedQASystem
 
     return IntegratedQASystem()
 
 
 def _close_qa_system(qa_system: Any) -> None:
     """关闭问答系统持有的 MySQL 和 Redis 连接。"""
+
+    close_system = getattr(qa_system, "close", None)
+    if callable(close_system):
+        close_system()
+        return
 
     mysql_client = getattr(qa_system, "mysql_client", None)
     if mysql_client is not None:
@@ -202,11 +179,13 @@ async def _record_history(
 
 @router.get("/", include_in_schema=False)
 async def read_root():
-    """返回前端首页；前端未生成时返回明确的 404 信息。"""
+    """返回服务入口信息。"""
 
-    if not INDEX_FILE.is_file():
-        raise HTTPException(status_code=404, detail="前端页面尚未生成")
-    return FileResponse(INDEX_FILE)
+    return {
+        "name": "EduRAG API",
+        "docs": "/docs",
+        "health": "/health",
+    }
 
 
 async def _create_session(qa_system: Any, title: str) -> dict:
@@ -313,7 +292,7 @@ async def clear_history(session_id: str, request: Request):
 
 @router.post("/api/query", response_model=QueryResponse)
 async def query(request_data: QueryRequest, request: Request):
-    """处理问候语和 FAQ 查询，并告知前端是否需要切换 WebSocket。"""
+    """执行低成本查询预判，并告知前端是否切换 WebSocket。"""
 
     start_time = time.perf_counter()
     qa_system = _get_http_qa_system(request)
@@ -325,31 +304,13 @@ async def query(request_data: QueryRequest, request: Request):
     except ValueError as exception:
         raise HTTPException(status_code=400, detail=str(exception)) from exception
 
-    # 日常问候直接回复，不执行 BM25 和 RAG 查询。
-    greeting_response = check_greeting(request_data.query)
-    if greeting_response:
-        await _record_history(
-            qa_system,
-            session_id,
-            request_data.query,
-            greeting_response,
-        )
-        return {
-            "answer": greeting_response,
-            "is_streaming": False,
-            "session_id": session_id,
-            "processing_time": time.perf_counter() - start_time,
-        }
-
-    # BM25、Redis 和 MySQL 都是同步调用，通过线程池执行以保护异步服务线程。
-    answer, need_rag = await run_in_threadpool(
-        qa_system.bm25_search.search,
+    decision = await run_in_threadpool(
+        qa_system.prepare_query,
         request_data.query,
-        0.85,
     )
 
-    # HTTP 接口不执行耗时的 RAG 生成，前端收到标志后改用 WebSocket。
-    if need_rag:
+    # HTTP 接口不执行耗时的 Agent，前端收到标志后改用 WebSocket。
+    if decision.requires_agent:
         return {
             "answer": "请使用WebSocket接口获取流式响应",
             "is_streaming": True,
@@ -357,8 +318,7 @@ async def query(request_data: QueryRequest, request: Request):
             "processing_time": time.perf_counter() - start_time,
         }
 
-    # FAQ 命中或明确无答案时，直接返回并记录本轮会话。
-    response_answer = answer or "未找到答案"
+    response_answer = decision.answer
     await _record_history(
         qa_system,
         session_id,
@@ -431,33 +391,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     {"type": "start", "session_id": session_id}
                 )
 
-                # 问候语也遵循统一的 token 和 end 消息协议。
-                greeting_response = check_greeting(query_text)
-                if greeting_response:
-                    await websocket.send_json(
-                        {
-                            "type": "token",
-                            "token": greeting_response,
-                            "session_id": session_id,
-                        }
-                    )
-                    await _record_history(
-                        qa_system,
-                        session_id,
-                        query_text,
-                        greeting_response,
-                    )
-                    await websocket.send_json(
-                        {
-                            "type": "end",
-                            "session_id": session_id,
-                            "is_complete": True,
-                            "processing_time": time.perf_counter() - start_time,
-                        }
-                    )
-                    continue
-
-                # 现有 query 是同步生成器，iterate_in_threadpool 可避免阻塞事件循环。
+                # query 是同步生成器，iterate_in_threadpool 可避免阻塞事件循环。
                 stream_completed = False
                 query_iterator = qa_system.query(
                     query_text,
@@ -578,13 +512,6 @@ def create_app(qa_system: Any = None) -> FastAPI:
         allow_headers=["*"],
     )
 
-    # 提前创建静态目录，后续生成 WebUI 后无需修改后端挂载逻辑。
-    STATIC_DIR.mkdir(parents=True, exist_ok=True)
-    application.mount(
-        "/static",
-        StaticFiles(directory=str(STATIC_DIR)),
-        name="static",
-    )
     application.include_router(router)
     return application
 

@@ -1,5 +1,5 @@
 # -*-coding:utf-8-*-
-from typing import TYPE_CHECKING
+from typing import Any
 '''
 paddleocr：解析图片中的文字，也可以进行表格识别
 rapidocr_paddle 和 rapidocr_onnxruntime 两种导入方式
@@ -9,7 +9,7 @@ rapidocr_paddle 和 rapidocr_onnxruntime 两种导入方式
 当只有 CPU 且需要高效推理时：使用 rapidocr_onnxruntime。它在 CPU 上进行了优化，资源占用较低.
 '''
 
-def get_ocr(use_cuda: bool = True) -> "RapidOCR":
+def get_ocr(use_cuda: bool = True) -> Any:
     try:
         from rapidocr_paddle import RapidOCR
         '''
